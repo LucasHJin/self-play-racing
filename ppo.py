@@ -56,3 +56,14 @@ def parse_args():
     args.batch_size = int(args.num_steps)
     
     return args
+
+def make_env(gym_id, seed):
+    def thunk():
+        env = gym.make(gym_id)
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env.seed(seed) # type: ignore
+        env.action_space.seed(seed)
+        env.observation_space.seed(seed)
+        return env
+    return thunk
+
