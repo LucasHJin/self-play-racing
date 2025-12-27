@@ -107,5 +107,12 @@ class Agent(nn.Module):
         return layer
         
     
-if __name__ == "__main__":
+def train(agent, envs, args):
     pass
+    
+if __name__ == "__main__":
+    args = parse_args()
+    envs = gym.vector.SyncVectorEnv([make_env(args.gym_id, args.seed) for _ in range(args.num_envs)])
+    
+    device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+    agent = Agent(envs).to(device) # obs + agent need to be on same device (pref gpu)
