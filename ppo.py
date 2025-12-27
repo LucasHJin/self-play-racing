@@ -68,3 +68,44 @@ def make_env(gym_id, seed):
         env.observation_space.seed(seed)
         return env
     return thunk
+
+class Agent(nn.Module):
+    def __init__(self, envs):
+        super().__init__()
+        self.actor = nn.Sequential(
+            Agent.layer_optimization(nn.Linear(np.array(envs.single_action_space.shape).prod(), 64)),
+            nn.Tanh(),
+            Agent.layer_optimization(nn.Linear(64, 64)),
+            nn.Tanh(),
+            Agent.layer_optimization(nn.Linear(64, envs.single_action_space.n), std=0.01), # output logits for all possible actions
+        )
+        
+        self.critic = nn.Sequential(
+            Agent.layer_optimization(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)), # flatten into total input features
+            nn.Tanh(),
+            Agent.layer_optimization(nn.Linear(64, 64)),
+            nn.Tanh(),
+            Agent.layer_optimization(nn.Linear(64, 1), std=1.0),
+        )
+        
+    # for advantage calcs
+    def get_value(self, obs):
+        return self.critic(obs)
+        
+    # for interacting with env + optimizing parameters
+    def get_action_and_value(self, obs, action=None):
+        logits = self.actor(obs)
+        probs = Categorical(logits)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action), probs.entropy(), self.critic(obs) # which action to take, clip ratio, exploration, advantages
+    
+    @staticmethod
+    def layer_optimization(layer, std=np.sqrt(2), bias=0.0):
+        torch.nn.init.orthogonal_(layer.weight, std) # stabilize initial weights
+        torch.nn.init.constant_(layer.bias, bias) # more predictable training
+        return layer
+        
+    
+if __name__ == "__main__":
+    pass
