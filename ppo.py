@@ -18,13 +18,13 @@ def parse_args():
     parser = argparse.ArgumentParser(prog="PPO implementation")
     
     # simplified
-    parser.add_argument("--gym-id", type=str, default="CartPole-v1",
+    parser.add_argument("--gym-id", type=str, default="LunarLander-v3",
         help="the id of the gym environment")
     parser.add_argument("--learning-rate", type=float, default=2.5e-4,
         help="the learning rate of the optimizer")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
-    parser.add_argument("--total-timesteps", type=int, default=150000,
+    parser.add_argument("--total-timesteps", type=int, default=500000,
         help="total timesteps of the experiments")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -32,7 +32,7 @@ def parse_args():
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--num-envs", type=int, default=4,
         help="the number of parallel game environments")
-    parser.add_argument("--num-steps", type=int, default=128,
+    parser.add_argument("--num-steps", type=int, default=256,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--gamma", type=float, default=0.99,
         help="the discount factor gamma")
@@ -231,7 +231,7 @@ def train(agent, envs, args, optimizer):
     
 def evaluate_agent(agent, gym_id, num_episodes=5, video_folder="videos"):
     eval_env = gym.make(gym_id, render_mode="rgb_array")
-    eval_env = gym.wrappers.RecordVideo(eval_env, video_folder, episode_trigger=lambda x: x == 0)
+    eval_env = gym.wrappers.RecordVideo(eval_env, video_folder, episode_trigger=lambda x: x == 0, name_prefix=gym_id)
     
     episode_rewards = []
     episode_lengths = []
