@@ -33,13 +33,13 @@ def parse_args():
         help="the learning rate of the optimizer")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
-    parser.add_argument("--total-timesteps", type=int, default=25000,
+    parser.add_argument("--total-timesteps", type=int, default=50000,
         help="total timesteps of the experiments")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
     parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
-    parser.add_argument("--num-envs", type=int, default=1,
+    parser.add_argument("--num-envs", type=int, default=4,
         help="the number of parallel game environments")
     parser.add_argument("--num-steps", type=int, default=128,
         help="the number of steps to run in each environment per policy rollout")
@@ -78,7 +78,7 @@ class Agent(nn.Module):
     def __init__(self, envs):
         super().__init__()
         self.actor = nn.Sequential(
-            Agent.layer_optimization(nn.Linear(np.array(envs.single_action_space.shape).prod(), 64)),
+            Agent.layer_optimization(nn.Linear(int(np.array(envs.single_observation_space.shape).prod()), 64)),
             nn.Tanh(),
             Agent.layer_optimization(nn.Linear(64, 64)),
             nn.Tanh(),
@@ -86,7 +86,7 @@ class Agent(nn.Module):
         )
         
         self.critic = nn.Sequential(
-            Agent.layer_optimization(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)), # flatten into total input features
+            Agent.layer_optimization(nn.Linear(int(np.array(envs.single_observation_space.shape).prod()), 64)), # flatten into total input features
             nn.Tanh(),
             Agent.layer_optimization(nn.Linear(64, 64)),
             nn.Tanh(),
@@ -100,7 +100,7 @@ class Agent(nn.Module):
     # for interacting with env + optimizing parameters
     def get_action_and_value(self, obs, action=None):
         logits = self.actor(obs)
-        probs = Categorical(logits)
+        probs = Categorical(logits=logits)
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(obs) # which action to take, clip ratio, exploration, advantages
@@ -130,12 +130,12 @@ def collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, v
             values[step].copy_(value.flatten()) # (num_envs, 1) -> (num_envs,)
                 
             # step through and repeat
-            next_obs, reward, terminated, truncated, info = envs.step(action.cpu().numpy()) # gym envs expect cpu
+            next_obs_np, reward_np, terminated, truncated, info = envs.step(action.cpu().numpy()) # gym envs expect cpu
             
-            reward_tensor.copy_(torch.from_numpy(reward).to(device).flatten())
+            reward_tensor.copy_(torch.from_numpy(reward_np).to(device).flatten())
             rewards[step].copy_(reward_tensor)
             
-            next_obs.copy_(torch.from_numpy(next_obs).to(device))
+            next_obs.copy_(torch.from_numpy(next_obs_np).to(device))
             next_done.copy_(torch.from_numpy(np.logical_or(terminated, truncated)).to(device))
     
     return obs, actions, logprobs, dones, rewards, values, next_obs, next_done
@@ -145,10 +145,10 @@ def compute_advantages(args, rewards, dones, values, next_value, next_done, gamm
         returns = torch.zeros_like(rewards, device=device)
         for t in reversed(range(args.num_steps)): # need to reverse because we bootstrap based on future rewards
             if t == args.num_steps - 1:
-                next_nonterminal = 1.0 - next_done 
+                next_nonterminal = 1.0 - next_done.to(dtype=torch.float32)
                 next_return = next_value # bootstrap extra value from critic
             else:
-                next_nonterminal = 1.0 - dones[t+1]
+                next_nonterminal = 1.0 - dones[t+1].to(dtype=torch.float32)
                 next_return = returns[t+1]
                 
             returns[t] = rewards[t] + gamma * next_nonterminal * next_return # non terminal checks if we should add it in or already stopped
