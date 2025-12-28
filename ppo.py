@@ -5,7 +5,7 @@ parse_args
 make_env
 Agent class
 train
-    collect_roolout
+    collect_rollout
     compute_advantages
     ppo_update
 """
@@ -108,7 +108,21 @@ class Agent(nn.Module):
         
     
 def train(agent, envs, args):
-    pass
+    # predefine storage buffer -> for each step + env, store a specific piece of data (more efficient than lists)
+    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space).to(device)
+    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space).to(device)
+    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    values = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    
+    NUM_UPDATES = args.total_timesteps // args.batch_size
+    
+    for update in range(NUM_UPDATES):
+        # 2 phase loop
+            # collect experience with current policy -> rollout
+            # use experience to update policy + value function (actor + critic) -> compute advantage, update ppo
+        pass
     
 if __name__ == "__main__":
     args = parse_args()
