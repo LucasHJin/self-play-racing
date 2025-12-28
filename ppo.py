@@ -133,8 +133,24 @@ def collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, v
             next_obs.copy_(torch.from_numpy(next_obs).to(device))
             next_done.copy_(torch.from_numpy(np.logical_or(terminated, truncated)).to(device))
     
-    return obs, actions, logprobs, dones, rewards, values
+    return obs, actions, logprobs, dones, rewards, values, next_obs, next_done
         
+def compute_advantages(args, rewards, dones, values, next_value, next_done, gamma):
+    with torch.no_grad():
+        returns = torch.zeros_like(rewards, device=device)
+        for t in reversed(range(args.num_steps)): # need to reverse because we bootstrap based on future rewards
+            if t == args.num_steps - 1:
+                next_nonterminal = 1.0 - next_done 
+                next_return = next_value # bootstrap extra value from critic
+            else:
+                next_nonterminal = 1.0 - dones[t+1]
+                next_return = returns[t+1]
+                
+            returns[t] = rewards[t] + gamma * next_nonterminal * next_return # non terminal checks if we should add it in or already stopped
+        advantages = returns - values # compute once at the end
+        
+        return advantages, returns
+            
     
 def train(agent, envs, args):
     # predefine storage buffer -> for each step + env, store a specific piece of data (more efficient than lists)
@@ -151,7 +167,12 @@ def train(agent, envs, args):
         # 2 phase loop
             # collect experience with current policy -> rollout
             # use experience to update policy + value function (actor + critic) -> compute advantage, update ppo
-        obs, actions, logprobs, dones, rewards, values = collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values)
+        obs, actions, logprobs, dones, rewards, values, next_obs, next_done = collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values)
+        
+        with torch.no_grad():
+            next_value = agent.get_value(next_obs).flatten()
+        
+        advantages, returns = compute_advantages(args, rewards, dones, values, next_value, next_done, args.gamma)
     
 if __name__ == "__main__":
     args = parse_args()
