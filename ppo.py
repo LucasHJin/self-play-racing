@@ -1,15 +1,3 @@
-"""
-Needed functions/logic:
-
-parse_args
-make_env
-Agent class
-train
-    collect_rollout
-    compute_advantages
-    ppo_update
-"""
-
 import argparse
 import os
 import random
@@ -23,6 +11,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 
+import warnings
+warnings.filterwarnings("ignore")
+
 def parse_args():
     parser = argparse.ArgumentParser(prog="PPO implementation")
     
@@ -33,7 +24,7 @@ def parse_args():
         help="the learning rate of the optimizer")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
-    parser.add_argument("--total-timesteps", type=int, default=50000,
+    parser.add_argument("--total-timesteps", type=int, default=150000,
         help="total timesteps of the experiments")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -111,12 +102,9 @@ class Agent(nn.Module):
         torch.nn.init.constant_(layer.bias, bias) # more predictable training
         return layer
         
-def collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values):
-    init_obs, _ = envs.reset()
-    # keep track of observations + if it's done to progress the rollout (remember to convert to gpu)
-    next_obs = torch.from_numpy(init_obs).to(device)
-    next_done = torch.zeros(args.num_envs, dtype=torch.bool, device=device)
+def collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values, next_obs, next_done):
     reward_tensor = torch.empty(args.num_envs, dtype=torch.float32, device=device) # preallocate reward tensor 
+    episode_info = []
     
     # no gradient update -> just collecting data
     with torch.no_grad():
@@ -130,15 +118,25 @@ def collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, v
             values[step].copy_(value.flatten()) # (num_envs, 1) -> (num_envs,)
                 
             # step through and repeat
-            next_obs_np, reward_np, terminated, truncated, info = envs.step(action.cpu().numpy()) # gym envs expect cpu
+            next_obs_np, reward_np, terminated, truncated, infos = envs.step(action.cpu().numpy()) # gym envs expect cpu
             
             reward_tensor.copy_(torch.from_numpy(reward_np).to(device).flatten())
             rewards[step].copy_(reward_tensor)
             
             next_obs.copy_(torch.from_numpy(next_obs_np).to(device))
             next_done.copy_(torch.from_numpy(np.logical_or(terminated, truncated)).to(device))
+            
+            # get finished episodes and add them to the info for this rollout
+            if "episode" in infos:
+                episode_mask = infos.get("_episode", np.ones(args.num_envs, dtype=bool))
+                for i in range(args.num_envs):
+                    if episode_mask[i]:
+                        episode_info.append({
+                            "reward": infos["episode"]["r"][i],
+                            "length": infos["episode"]["l"][i]
+                        })
     
-    return obs, actions, logprobs, dones, rewards, values, next_obs, next_done
+    return obs, actions, logprobs, dones, rewards, values, next_obs, next_done, episode_info
         
 def compute_advantages(args, rewards, dones, values, next_value, next_done, gamma):
     with torch.no_grad():
@@ -203,20 +201,33 @@ def train(agent, envs, args, optimizer):
     rewards = torch.zeros((args.num_steps, args.num_envs), device=device)
     values = torch.zeros((args.num_steps, args.num_envs), device=device)
     
+    init_obs, _ = envs.reset()
+    # keep track of observations + if it's done to progress the rollout (remember to convert to gpu)
+    next_obs = torch.from_numpy(init_obs).to(device)
+    next_done = torch.zeros(args.num_envs, dtype=torch.bool, device=device)
+    
     NUM_UPDATES = args.total_timesteps // args.batch_size
+    global_step = 0
     
     for update in range(NUM_UPDATES):
         # 2 phase loop
             # collect experience with current policy -> rollout
             # use experience to update policy + value function (actor + critic) -> compute advantage, update ppo
-        obs, actions, logprobs, dones, rewards, values, next_obs, next_done = collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values)
-        
+        obs, actions, logprobs, dones, rewards, values, next_obs, next_done, episode_info = collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values, next_obs, next_done)
         with torch.no_grad():
             next_value = agent.get_value(next_obs).flatten()
-        
         advantages, returns = compute_advantages(args, rewards, dones, values, next_value, next_done, args.gamma)
-        
         ppo_update(agent, args, advantages, returns, logprobs, values, actions, obs, optimizer)
+        
+        # logging 
+        global_step += args.batch_size
+        if episode_info:
+            mean_reward = np.mean([ep["reward"] for ep in episode_info])
+            mean_length = np.mean([ep["length"] for ep in episode_info])
+            print(f"Update {update+1}/{NUM_UPDATES} | Step {global_step} | Episodes: {len(episode_info)} | "
+                  f"Mean Reward: {mean_reward:.2f} | Mean Length: {mean_length:.2f}")
+        else:
+            print(f"Update {update+1}/{NUM_UPDATES} | Step {global_step} | No episodes completed this rollout")
     
 def evaluate_agent(agent, gym_id, num_episodes=5, video_folder="videos"):
     eval_env = gym.make(gym_id, render_mode="rgb_array")
