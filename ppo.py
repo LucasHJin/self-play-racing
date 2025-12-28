@@ -68,7 +68,7 @@ def make_env(gym_id, seed):
     def thunk():
         env = gym.make(gym_id)
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env.seed(seed) # type: ignore
+        env.reset(seed=seed)
         env.action_space.seed(seed)
         env.observation_space.seed(seed)
         return env
@@ -191,13 +191,13 @@ def ppo_update(agent, args, advantages, returns, logprobs, values, actions, obs,
             loss = pg_loss + args.ent_coef * e_loss + args.vf_coef * v_loss
             
             optimizer.zero_grad()
-            loss.backwards()
+            loss.backward()
             optimizer.step()
     
 def train(agent, envs, args, optimizer):
     # predefine storage buffer -> for each step + env, store a specific piece of data (more efficient than lists)
-    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space, device=device)
-    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space, device=device)
+    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape, device=device)
+    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape, device=device)
     logprobs = torch.zeros((args.num_steps, args.num_envs), device=device)
     dones = torch.zeros((args.num_steps, args.num_envs), device=device)
     rewards = torch.zeros((args.num_steps, args.num_envs), device=device)
@@ -217,10 +217,18 @@ def train(agent, envs, args, optimizer):
         advantages, returns = compute_advantages(args, rewards, dones, values, next_value, next_done, args.gamma)
         
         ppo_update(agent, args, advantages, returns, logprobs, values, actions, obs, optimizer)
+        
+        avg_reward = rewards.sum(dim=0).mean().item()
+        print(f"Update {update}/{NUM_UPDATES} | Avg reward: {avg_reward:.2f}")
     
 if __name__ == "__main__":
     args = parse_args()
-    envs = gym.vector.SyncVectorEnv([make_env(args.gym_id, args.seed) for _ in range(args.num_envs)])
+    envs = gym.vector.SyncVectorEnv([make_env(args.gym_id, args.seed + i) for i in range(args.num_envs)])
+    
+    # seed the values for reproducibility
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
     
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
     agent = Agent(envs).to(device) # obs + agent need to be on same device (pref gpu)
