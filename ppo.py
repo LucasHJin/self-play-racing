@@ -218,6 +218,44 @@ def train(agent, envs, args, optimizer):
         
         ppo_update(agent, args, advantages, returns, logprobs, values, actions, obs, optimizer)
     
+def evaluate_agent(agent, gym_id, num_episodes=5, video_folder="videos"):
+    eval_env = gym.make(gym_id, render_mode="rgb_array")
+    eval_env = gym.wrappers.RecordVideo(eval_env, video_folder, episode_trigger=lambda x: x == 0)
+    
+    episode_rewards = []
+    episode_lengths = []
+    
+    for episode in range(num_episodes):
+        obs, _ = eval_env.reset()
+        done = False
+        episode_reward = 0
+        episode_length = 0
+        
+        while not done:
+            with torch.no_grad():
+                obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(device) # add batch dimension
+                action, _, _, _ = agent.get_action_and_value(obs_tensor)
+                action = action.cpu().numpy()[0] # get scalar
+            
+            obs, reward, terminated, truncated, _ = eval_env.step(action)
+            done = terminated or truncated
+            episode_reward += float(reward)
+            episode_length += 1
+        
+        episode_rewards.append(episode_reward)
+        episode_lengths.append(episode_length)
+        print(f"Episode {episode + 1}/{num_episodes} | Reward: {episode_reward:.0f} | Length: {episode_length}")
+    
+    eval_env.close()
+    
+    print(f"\n{'='*50}")
+    print(f"Evaluation over {num_episodes} episodes:")
+    print(f"Average reward: {np.mean(episode_rewards):.2f} ± {np.std(episode_rewards):.2f}")
+    print(f"Average length: {np.mean(episode_lengths):.2f} ± {np.std(episode_lengths):.2f}")
+    print(f"{'='*50}")
+    
+    return episode_rewards, episode_lengths
+    
 if __name__ == "__main__":
     args = parse_args()
     envs = gym.vector.SyncVectorEnv([make_env(args.gym_id, args.seed + i) for i in range(args.num_envs)])
@@ -232,3 +270,5 @@ if __name__ == "__main__":
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
     
     train(agent, envs, args, optimizer)
+    
+    evaluate_agent(agent, args.gym_id, num_episodes=5)
