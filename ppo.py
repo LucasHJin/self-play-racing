@@ -51,11 +51,16 @@ def parse_args():
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
+    parser.add_argument("--update-epochs", type=int, default=4,
+        help="the K epochs to update the policy")
+    parser.add_argument("--num-minibatches", type=int, default=4,
+        help="the number of mini-batches")
     
     # optimizations (TO BE DONE LATER)
     
     args = parser.parse_args()
     args.batch_size = int(args.num_steps * args.num_envs)
+    args.minibatch_size = int(args.num_steps // args.num_minibatches)
     
     return args
 
@@ -151,8 +156,45 @@ def compute_advantages(args, rewards, dones, values, next_value, next_done, gamm
         
         return advantages, returns
             
+def ppo_update(agent, args, advantages, returns, logprobs, values, actions, obs, optimizer):
+    # flatten batch data (num_steps * num_envs, [optional data]) -> no time data needed
+    b_obs = obs.reshape((-1,) + obs.shape[2:])
+    b_actions = actions.reshape((-1,) + actions.shape[2:])
+    b_logprobs = logprobs.reshape(-1)
+    b_advantages = advantages.reshape(-1)
+    b_returns = returns.reshape(-1)
+    b_values = values.reshape(-1)
+    b_inds = np.arange(args.batch_size) # for shuffling + minibatch
     
-def train(agent, envs, args):
+    for epoch in range(args.update_epochs):
+        np.random.shuffle(b_inds)
+        for start_idx in range(0, args.batch_size, args.minibatch_size):
+            end_idx = start_idx + args.minibatch_size
+            mb_inds = b_inds[start_idx:end_idx]
+            
+            # pass action back in to get new probability + value using new policy
+            _, new_logprob, entropy, new_value = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds]) # long because logprob needs int
+            ratio = (new_logprob - b_logprobs[mb_inds]).exp()
+            
+            # policy loss
+            # note -> signs in formula show you what to max + min (pytorch naturally minimizes)
+            pg_loss1 = -b_advantages[mb_inds] * ratio
+            pg_loss2 = -b_advantages[mb_inds] * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
+            pg_loss = torch.max(pg_loss1, pg_loss2).mean() # mean averages E[] into single scalar
+            # value loss (minimize -> keep positive)
+            new_value = new_value.flatten()
+            v_loss = 0.5 * ((new_value - b_returns[mb_inds]) ** 2).mean()
+            #entropy loss
+            e_loss = -entropy.mean()
+            
+            # total loss
+            loss = pg_loss + args.ent_coef * e_loss + args.vf_coef * v_loss
+            
+            optimizer.zero_grad()
+            loss.backwards()
+            optimizer.step()
+    
+def train(agent, envs, args, optimizer):
     # predefine storage buffer -> for each step + env, store a specific piece of data (more efficient than lists)
     obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space, device=device)
     actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space, device=device)
@@ -173,6 +215,8 @@ def train(agent, envs, args):
             next_value = agent.get_value(next_obs).flatten()
         
         advantages, returns = compute_advantages(args, rewards, dones, values, next_value, next_done, args.gamma)
+        
+        ppo_update(agent, args, advantages, returns, logprobs, values, actions, obs, optimizer)
     
 if __name__ == "__main__":
     args = parse_args()
@@ -180,3 +224,6 @@ if __name__ == "__main__":
     
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
     agent = Agent(envs).to(device) # obs + agent need to be on same device (pref gpu)
+    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
+    
+    train(agent, envs, args, optimizer)
