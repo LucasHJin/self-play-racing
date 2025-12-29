@@ -17,11 +17,11 @@ def parse_args():
     # simplified
     parser.add_argument("--gym-id", type=str, default="Pendulum-v1",
         help="the id of the gym environment")
-    parser.add_argument("--learning-rate", type=float, default=2.5e-4,
+    parser.add_argument("--learning-rate", type=float, default=3e-4,
         help="the learning rate of the optimizer")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
-    parser.add_argument("--total-timesteps", type=int, default=500000,
+    parser.add_argument("--total-timesteps", type=int, default=1300000,
         help="total timesteps of the experiments")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -29,19 +29,19 @@ def parse_args():
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--num-envs", type=int, default=4,
         help="the number of parallel game environments")
-    parser.add_argument("--num-steps", type=int, default=256,
+    parser.add_argument("--num-steps", type=int, default=2048,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--gamma", type=float, default=0.99,
         help="the discount factor gamma")
     parser.add_argument("--clip-coef", type=float, default=0.2,
         help="the surrogate clipping coefficient")
-    parser.add_argument("--ent-coef", type=float, default=0.01,
+    parser.add_argument("--ent-coef", type=float, default=0.0,
         help="coefficient of the entropy")
     parser.add_argument("--vf-coef", type=float, default=0.5,
         help="coefficient of the value function")
-    parser.add_argument("--update-epochs", type=int, default=4,
+    parser.add_argument("--update-epochs", type=int, default=12,
         help="the K epochs to update the policy")
-    parser.add_argument("--num-minibatches", type=int, default=4,
+    parser.add_argument("--num-minibatches", type=int, default=32,
         help="the number of mini-batches")
     
     # optimizations (TO BE DONE LATER)
@@ -60,6 +60,7 @@ def make_env(gym_id, seed):
     def thunk():
         env = gym.make(gym_id)
         env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.wrappers.ClipAction(env)
         env.reset(seed=seed)
         env.action_space.seed(seed)
         env.observation_space.seed(seed)
@@ -71,20 +72,20 @@ class Agent(nn.Module):
         super().__init__()
         # actor outputs mu + std for normal distribution
         self.actor_mu = nn.Sequential(
-            Agent.layer_optimization(nn.Linear(int(np.array(envs.single_observation_space.shape).prod()), 64)),
+            Agent.layer_optimization(nn.Linear(int(np.array(envs.single_observation_space.shape).prod()), 256)),
             nn.Tanh(),
-            Agent.layer_optimization(nn.Linear(64, 64)),
+            Agent.layer_optimization(nn.Linear(256, 256)),
             nn.Tanh(),
-            Agent.layer_optimization(nn.Linear(64, envs.single_action_space.shape[0]), std=0.01), # output logits for all possible actions
+            Agent.layer_optimization(nn.Linear(256, envs.single_action_space.shape[0]), std=0.01), # output logits for all possible actions
         )
         self.log_std = nn.Parameter(torch.zeros(envs.single_action_space.shape[0])) # use log to always learn a positive value
         
         self.critic = nn.Sequential(
-            Agent.layer_optimization(nn.Linear(int(np.array(envs.single_observation_space.shape).prod()), 64)), # flatten into total input features
+            Agent.layer_optimization(nn.Linear(int(np.array(envs.single_observation_space.shape).prod()), 256)), # flatten into total input features
             nn.Tanh(),
-            Agent.layer_optimization(nn.Linear(64, 64)),
+            Agent.layer_optimization(nn.Linear(256, 256)),
             nn.Tanh(),
-            Agent.layer_optimization(nn.Linear(64, 1), std=1.0),
+            Agent.layer_optimization(nn.Linear(256, 1), std=1.0),
         )
         
     # for advantage calcs
