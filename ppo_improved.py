@@ -185,8 +185,11 @@ def ppo_update(agent, args, advantages, returns, logprobs, actions, obs, optimiz
             
             # policy loss
             # note -> signs in formula show you what to max + min (pytorch naturally minimizes)
-            pg_loss1 = -b_advantages[mb_inds] * ratio
-            pg_loss2 = -b_advantages[mb_inds] * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
+            mb_advantages = b_advantages[mb_inds]
+            mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8) # normalize in minibatches because each mb has different values
+            
+            pg_loss1 = -mb_advantages * ratio
+            pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
             pg_loss = torch.max(pg_loss1, pg_loss2).mean() # mean averages E[] into single scalar
             # value loss (minimize -> keep positive)
             new_value = new_value.flatten()
