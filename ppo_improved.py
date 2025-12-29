@@ -47,6 +47,8 @@ def parse_args():
     # optimizations (TO BE DONE LATER)
     parser.add_argument("--gae-lambda", type=float, default=0.95,
         help="lambda for GAE")
+    parser.add_argument("--max-grad-norm", type=float, default=0.5,
+        help="maximum norm for gradient clipping")
     
     args = parser.parse_args()
     args.batch_size = int(args.num_steps * args.num_envs)
@@ -202,6 +204,7 @@ def ppo_update(agent, args, advantages, returns, logprobs, actions, obs, optimiz
             
             optimizer.zero_grad()
             loss.backward()
+            nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm) # clip if magnitude of vectors is too big
             optimizer.step()
     
 def train(agent, envs, args, optimizer):
