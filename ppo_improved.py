@@ -60,7 +60,7 @@ def make_env(gym_id, seed):
     def thunk():
         env = gym.make(gym_id)
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = gym.wrappers.ClipAction(env)
+        env = gym.wrappers.RescaleAction(env, min_action=np.array([-1.0]), max_action=np.array([1.0])) # map range of (-1, 1) to env.action_space
         env = gym.wrappers.NormalizeObservation(env)
         env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), observation_space=env.observation_space)
         env.reset(seed=seed)
@@ -79,6 +79,7 @@ class Agent(nn.Module):
             Agent.layer_optimization(nn.Linear(256, 256)),
             nn.Tanh(),
             Agent.layer_optimization(nn.Linear(256, envs.single_action_space.shape[0]), std=0.01), # output logits for all possible actions
+            nn.Tanh(), # bound to (-1, 1)
         )
         self.log_std = nn.Parameter(torch.zeros(envs.single_action_space.shape[0])) # use log to always learn a positive value
         
@@ -262,6 +263,10 @@ def train(agent, envs, args, optimizer):
 def evaluate_agent(agent, gym_id, num_episodes=5, video_folder="videos"):
     eval_env = gym.make(gym_id, render_mode="rgb_array")
     eval_env = gym.wrappers.RecordVideo(eval_env, video_folder, episode_trigger=lambda x: x == 0, name_prefix=gym_id)
+    eval_env = gym.wrappers.RescaleAction(eval_env, min_action=np.array([-1.0]), max_action=np.array([1.0]))
+    eval_env = gym.wrappers.NormalizeObservation(eval_env)
+    eval_env = gym.wrappers.TransformObservation(eval_env, lambda obs: np.clip(obs, -10, 10), eval_env.observation_space)
+    
     
     episode_rewards = []
     episode_lengths = []
