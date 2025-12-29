@@ -231,12 +231,18 @@ def train(agent, envs, args, optimizer):
     global_step = 0
     
     for update in range(NUM_UPDATES):
+        # lr annealing
+        frac = max(0.0, 1.0 - update / NUM_UPDATES) # clamp just in case because of floats
+        new_lr = frac * args.learning_rate
+        optimizer.param_groups[0]["lr"] = new_lr
+        
         # 2 phase loop
             # collect experience with current policy -> rollout
             # use experience to update policy + value function (actor + critic) -> compute advantage, update ppo
         obs, actions, logprobs, dones, rewards, values, next_obs, next_done, episode_info = collect_rollout(agent, envs, args, obs, actions, logprobs, dones, rewards, values, next_obs, next_done)
         with torch.no_grad():
             next_value = agent.get_value(next_obs).flatten()
+            
         advantages, returns = compute_advantages(args, rewards, dones, values, next_value, next_done, args.gamma)
         ppo_update(agent, args, advantages, returns, values, logprobs, actions, obs, optimizer)
         
