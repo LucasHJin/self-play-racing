@@ -1,7 +1,7 @@
 import numpy as np
 import gymnasium as gym
-from track import Track
-from car import Car
+from .track import Track
+from .car import Car
 
 # https://gymnasium.farama.org/introduction/create_custom_env/
 
@@ -25,8 +25,8 @@ class RacingEnv(gym.Env):
         )
         # [vx, vy, angle, angular_velocity, progress]
         self.observation_space = gym.spaces.Box(
-            low=-np.inf,
-            high=np.inf,
+            low=np.float32(-np.inf),
+            high=np.float32(np.inf),
             shape=(5,),
             dtype=np.float32
         ) 
