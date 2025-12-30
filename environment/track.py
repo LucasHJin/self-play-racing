@@ -82,7 +82,3 @@ class Track:
         pos_vector = np.array((x, y)) - self.waypoints[idx]
         dist = abs(np.dot(pos_vector, normal)) # project position onto normal vector
         return dist > Track.TRACK_WIDTH
-        
-        
-track = Track()
-track.visualize()
