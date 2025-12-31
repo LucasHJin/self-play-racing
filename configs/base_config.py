@@ -1,8 +1,8 @@
 def hyperparams_config():
     config = {
         # training
-        "total_timesteps": 15000000,
-        "num_envs": 8,
+        "total_timesteps": 10000000,
+        "num_envs": 16,
         "num_steps": 2048,
         "learning_rate": 3e-4,
         
@@ -13,7 +13,7 @@ def hyperparams_config():
         "ent_coef": 0.01,
         "vf_coef": 0.5,
         "update_epochs": 10,
-        "num_minibatches": 16,
+        "num_minibatches": 32,
         "max_grad_norm": 0.5,
         
         # system

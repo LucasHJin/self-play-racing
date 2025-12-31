@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.interpolate import CubicSpline
-import matplotlib.pyplot as plt
 
 class Track:
     TRACK_WIDTH = 5.0
@@ -58,20 +57,6 @@ class Track:
             p2 = boundary[(i + 1) % len(boundary)] # close off loop
             segments.append((p1, p2))
         return segments
-    
-    def visualize(self):
-        fig, ax = plt.subplots(figsize=(10, 10)) # ax is plotting area, fig can have multiple axes
-        
-        waypoints_closed = np.vstack([self.waypoints, self.waypoints[0]])
-        left_closed = np.vstack([self.left_boundary, self.left_boundary[0]])
-        right_closed = np.vstack([self.right_boundary, self.right_boundary[0]])
-        
-        ax.plot(waypoints_closed[:, 0], waypoints_closed[:, 1], 'b-', linewidth=2)
-        ax.plot(left_closed[:, 0], left_closed[:, 1], 'k-')
-        ax.plot(right_closed[:, 0], right_closed[:, 1], 'k-')
-        ax.set_aspect('equal') # equal axis scales
-        
-        plt.show()
         
     def closest_waypoint_idx(self, x, y):
         idx = np.sum((self.waypoints - np.array((x, y))) ** 2, axis=1).argmin()

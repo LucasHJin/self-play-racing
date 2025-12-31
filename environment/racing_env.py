@@ -6,7 +6,7 @@ from .car import Car
 # https://gymnasium.farama.org/introduction/create_custom_env/
 
 class RacingEnv(gym.Env):
-    def __init__(self, num_sensors=11):
+    def __init__(self, num_sensors=13):
         super().__init__()
         
         self.track = Track()
