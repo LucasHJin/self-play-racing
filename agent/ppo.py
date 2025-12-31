@@ -83,8 +83,8 @@ class PPO:
         def thunk():
             env = env_fn()
             env = gym.wrappers.RecordEpisodeStatistics(env)
-            env = gym.wrappers.NormalizeObservation(env)
-            env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), observation_space=env.observation_space)
+            #env = gym.wrappers.NormalizeObservation(env)
+            #env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), observation_space=env.observation_space)
             env.reset(seed=seed)
             env.action_space.seed(seed)
             env.observation_space.seed(seed)

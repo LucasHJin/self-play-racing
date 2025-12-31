@@ -14,7 +14,7 @@ def set_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-def main():
+def train():
     config = hyperparams_config()
     set_seed(config["seed"])
     
@@ -31,4 +31,4 @@ def main():
     print("\nTraining complete! Model saved to models/racing_agent.pth")
 
 if __name__ == "__main__":
-    main()
+    train()

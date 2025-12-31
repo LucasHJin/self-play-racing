@@ -1,5 +1,7 @@
 import numpy as np
 
+# change car to be an actual rectangle with borders
+
 class Car:
     MAX_SPEED = 30.0
     ACCELERATION = 10.0
