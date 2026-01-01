@@ -22,7 +22,6 @@ class MultiRacingEnv(gym.Env):
             "last_steering": 0.0,
             "checkpoints": {0.25: False, 0.50: False, 0.75: False},
             "finished_step": None,
-            "placement": None
         } for _ in range(num_agents)]
         
         # per agent -> [steering, throttle]
@@ -114,7 +113,6 @@ class MultiRacingEnv(gym.Env):
             "progress": car.progress,
             "crashed": car.crashed,
             "finished": car.finished,
-            "placement": self.agents_data[agent_idx]["placement"]
         }
         
     def reset(self, seed=None, options=None): # type: ignore
@@ -132,7 +130,6 @@ class MultiRacingEnv(gym.Env):
                 "last_steering": 0.0,
                 "checkpoints": {0.25: False, 0.50: False, 0.75: False},
                 "finished_step": None,
-                "placement": None
             }
             
         observations = {f"{i}": self._get_obs(i) for i in range(self.num_agents)}
