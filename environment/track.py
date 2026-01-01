@@ -26,7 +26,7 @@ class Track:
         self.segment_cache = {} # segment cache for vectorized raycasting
         self.build_segment_cache()
         
-    def gen_waypoints(self, factor=25):
+    def gen_waypoints(self, factor=30):
         # close points loop
         points = np.vstack((self.control_points, self.control_points[0]))
         
