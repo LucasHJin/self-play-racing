@@ -197,6 +197,8 @@ class PPO:
                 self.optimizer.step()
     
     def train(self):
+        import json # for saving training info
+        
         c = self.config
         
         # type check -> make sure not none
@@ -221,6 +223,11 @@ class PPO:
         NUM_UPDATES = c["total_timesteps"] // c["batch_size"]
         global_step = 0
         
+        training_info = {
+            'steps': [],
+            'rewards': []
+        }
+        
         for update in range(NUM_UPDATES):
             # lr annealing
             frac = max(0.0, 1.0 - update / NUM_UPDATES) # clamp just in case because of floats
@@ -242,10 +249,19 @@ class PPO:
             if episode_info:
                 mean_reward = np.mean([ep["reward"] for ep in episode_info])
                 mean_length = np.mean([ep["length"] for ep in episode_info])
+                training_info['steps'].append(global_step)
+                training_info['rewards'].append(float(mean_reward))
                 print(f"Update {update+1}/{NUM_UPDATES} | Step {global_step} | Episodes: {len(episode_info)} | "
                       f"Mean Reward: {mean_reward:.2f} | Mean Length: {mean_length:.2f}")
             else:
                 print(f"Update {update+1}/{NUM_UPDATES} | Step {global_step} | No episodes completed this rollout")
+                
+        try:
+            with open("/cache/training_info.json", 'w') as f:
+                json.dump(training_info, f)
+            print("\nTraining data saved to /cache/training_info.json")
+        except Exception as e:
+            print(f"Warning: Could not save data: {e}")
     
     def save(self, path):
         torch.save(self.agent.state_dict(), path)
