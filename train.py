@@ -16,8 +16,8 @@ image = (
 
 @app.function(
     image=image,
-    gpu="A10G",
-    timeout=14400,
+    gpu="L4",
+    timeout=36000,
     volumes={"/cache": modal.Volume.from_name("racing-model-cache", create_if_missing=True)},
 )
 def train():

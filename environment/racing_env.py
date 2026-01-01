@@ -6,7 +6,7 @@ from .car import Car
 # https://gymnasium.farama.org/introduction/create_custom_env/
 
 class RacingEnv(gym.Env):
-    def __init__(self, num_sensors=13):
+    def __init__(self, num_sensors=7):
         super().__init__()
         
         self.track = Track()
@@ -41,7 +41,7 @@ class RacingEnv(gym.Env):
         ) 
         
     def get_sensor_readings(self):
-        sensor_angles = np.linspace(-np.pi/2, np.pi/2, self.num_sensors) # front half of car
+        sensor_angles = np.linspace(-np.pi/3, np.pi/3, self.num_sensors) # front cone
         distances = np.zeros(self.num_sensors, dtype=np.float32)
         origin = np.array([self.car.x, self.car.y])
         
@@ -144,7 +144,7 @@ class RacingEnv(gym.Env):
         info["reward"] = reward
         info["progress_delta"] = progress_delta
         terminated = self.car.crashed or self.car.finished
-        truncated = self.steps >= 2000
+        truncated = self.steps >= 3000
         
         # update progress
         self.last_progress = self.car.progress
