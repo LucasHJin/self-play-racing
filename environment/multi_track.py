@@ -177,3 +177,46 @@ class MultiTrack:
             return max_dist
     
         return float(np.min(t[hit_mask])) # return min
+    
+    def gen_random_track(self, num_points=15, base_radius=70, radius_variation=20, angle_jitter=0.2, smoothness=0.5, seed=None):
+        if seed is not None:
+            np.random.seed(seed)
+            
+        # generate angles with some discrepancies in spacing
+        angles = np.linspace(0, 2*np.pi, num_points, endpoint=False)
+        if angle_jitter > 0:
+            angle_spacing = 2*np.pi / num_points
+            angle_offsets = np.random.uniform(
+                -angle_jitter * angle_spacing / 2,
+                angle_jitter * angle_spacing / 2,
+                num_points
+            )
+            angles = angles + angle_offsets
+            angles = np.sort(angles % (2*np.pi)) # keep in 0-2π and sorted
+    
+        # generate random radius for how in/out they are from the circle + smoothing (how close to previous point)
+        radii = np.zeros(num_points)
+        for i in range(num_points):
+            variation = np.random.uniform(-radius_variation, radius_variation)
+            if smoothness > 0:
+                prev_idx = (i - 1) % num_points
+                if i == 0:
+                    radii[i] = base_radius + variation
+                else:
+                    # smooth with previous point
+                    neighbor_avg = radii[prev_idx]
+                    radii[i] = (1 - smoothness) * (base_radius + variation) + (smoothness * neighbor_avg) # weighted average between new radius and previous radius
+            else:
+                radii[i] = base_radius + variation
+        
+        # smooth first point at the end
+        if smoothness > 0:
+            radii[0] = (radii[0] + radii[-1]) / 2
+        
+        # change to carteiian coords
+        control_points = np.column_stack([
+            radii * np.cos(angles),
+            radii * np.sin(angles)
+        ])
+        
+        return control_points
