@@ -2,7 +2,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 
 class Track:
-    TRACK_WIDTH = 5.0
+    TRACK_WIDTH = 4.0
     
     def __init__(self):
         self.control_points = np.array([
@@ -23,8 +23,10 @@ class Track:
         self.right_boundary = self.waypoints - self.normals * Track.TRACK_WIDTH
         self.left_segments = self.gen_segments(self.left_boundary)
         self.right_segments = self.gen_segments(self.right_boundary)
+        self.segment_cache = {} # segment cache for vectorized raycasting
+        self.build_segment_cache()
         
-    def gen_waypoints(self, factor=40):
+    def gen_waypoints(self, factor=25):
         # close points loop
         points = np.vstack((self.control_points, self.control_points[0]))
         
@@ -57,6 +59,22 @@ class Track:
             p2 = boundary[(i + 1) % len(boundary)] # close off loop
             segments.append((p1, p2))
         return segments
+    
+    def build_segment_cache(self):
+        left_starts = np.array([seg[0] for seg in self.left_segments])
+        left_ends = np.array([seg[1] for seg in self.left_segments])
+        right_starts = np.array([seg[0] for seg in self.right_segments])
+        right_ends = np.array([seg[1] for seg in self.right_segments])
+        
+        # combine left and right [num_segments, 2]
+        all_starts = np.vstack([left_starts, right_starts])
+        all_ends = np.vstack([left_ends, right_ends])
+        
+        self.segment_cache = {
+            'starts': all_starts,
+            'ends': all_ends,
+            'v2': all_ends - all_starts  # precompute segment vectors
+        }
         
     def closest_waypoint_idx(self, x, y):
         idx = np.sum((self.waypoints - np.array((x, y))) ** 2, axis=1).argmin()
@@ -81,33 +99,30 @@ class Track:
                 return True
         return False
     
-    def ray_segment_intersection(self, ray_origin, ray_dir, seg_start, seg_end):
-        v1 = ray_origin - seg_start
-        v2 = seg_end - seg_start
-        v3 = np.array([-ray_dir[1], ray_dir[0]]) 
-        
-        denom = np.dot(v2, v3)
-        if abs(denom) < 1e-10: 
-            return None
-        
-        t = np.cross(v2, v1) / denom
-        s = np.dot(v1, v3) / denom
-        if t >= 0 and 0 <= s <= 1: 
-            return t
-        return None
-    
     def raycast(self, origin, direction, max_dist=50.0):
         ray_dir = np.array([np.cos(direction), np.sin(direction)])
+        all_starts = self.segment_cache['starts']
+        v1 = origin - all_starts 
+        v2 = self.segment_cache['v2']
+        v3 = np.array([-ray_dir[1], ray_dir[0]])
+        dotp = np.sum(v2 * v3, axis=1) 
         
-        min_dist = max_dist
+        # filter out parallel segments (where dotp around 0)
+        valid = np.abs(dotp) > 1e-10
+        if not np.any(valid):
+            return max_dist
         
-        for seg_start, seg_end in self.left_segments:
-            dist = self.ray_segment_intersection(origin, ray_dir, seg_start, seg_end)
-            if dist is not None:
-                min_dist = min(dist, min_dist)
-        for seg_start, seg_end in self.right_segments:
-            dist = self.ray_segment_intersection(origin, ray_dir, seg_start, seg_end)
-            if dist is not None:
-                min_dist = min(dist, min_dist)
-        
-        return min_dist
+        # distance along ray -> (t = cross(v2, v1) / dotp)
+        cross_products = v2[:, 0] * v1[:, 1] - v2[:, 1] * v1[:, 0]
+        t = np.full(len(all_starts), max_dist)
+        t[valid] = cross_products[valid] / dotp[valid]
+        # position along segment -> (s = dot(v1, v3) / dotp)
+        dot_products = np.sum(v1 * v3, axis=1)
+        s = np.full(len(all_starts), -1.0)
+        s[valid] = dot_products[valid] / dotp[valid]
+        # valid intersections
+        hit_mask = valid & (t >= 0) & (s >= 0) & (s <= 1)
+        if not np.any(hit_mask):
+            return max_dist
+    
+        return float(np.min(t[hit_mask])) # return min
