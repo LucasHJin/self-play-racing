@@ -68,7 +68,7 @@ def train():
     print(f"{'='*60}\n")
     
     # save final model
-    final_path = "/cache/single_agent_speed.pth"
+    final_path = "/cache/single_agent_time.pth"
     trainer.save(final_path)
     print(f"Final model saved to {final_path}")
     

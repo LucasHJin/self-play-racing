@@ -264,7 +264,7 @@ class PPO:
                 print(f"Update {update+1}/{NUM_UPDATES} | Step {global_step} | No episodes completed this rollout")
                 
         try:
-            with open("/cache/training_info.json", 'w') as f:
+            with open("/cache/training_info_time.json", 'w') as f:
                 json.dump(training_info, f)
             print("\nTraining data saved to /cache/training_info.json")
         except Exception as e:
