@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import pygame
 from environment.multi_racing_env import MultiRacingEnv
+from environment.multi_track import gen_tracks
 from agent.ppo import Agent
 
 def convert_coords(x, y, ox, oy, scale, screen_size):
@@ -9,57 +10,71 @@ def convert_coords(x, y, ox, oy, scale, screen_size):
     screen_y = int(screen_size - (y + oy) * scale)
     return screen_x, screen_y
 
-def eval(model_path="models/self_play_agent.pth", num_episodes=3):
-    # setup
-    env = MultiRacingEnv(num_agents=2, num_sensors=11)
-    track = env.track
+def eval(model_path="models/self_play_agent.pth", num_episodes=3, seed=999):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # load trained weights
-    single_obs_space = env.observation_space["0"] # type: ignore
-    single_action_space = env.action_space["0"] # type: ignore
+    
+    # generate track pool
+    track_pool = gen_tracks(num_tracks=num_episodes, seed=seed)
+    track_widths = [np.random.randint(4, 10) for _ in range(num_episodes)]
+    
+    # dummy env to get shapes
+    dummy_env = MultiRacingEnv(num_agents=2, num_sensors=11)
+    single_obs_space = dummy_env.observation_space["0"] # type: ignore
+    single_action_space = dummy_env.action_space["0"] # type: ignore
     
     agent = Agent(single_obs_space, single_action_space)
     agent.load_state_dict(torch.load(model_path, map_location=device))
     agent.to(device)
     agent.eval()
     
-    # pygame setup
-    pygame.init()
-    all_points = np.vstack([track.left_boundary, track.right_boundary]) # track bounds for scaling
-    min_x, min_y = all_points.min(axis=0)
-    max_x, max_y = all_points.max(axis=0)
-    padding = 10
-    track_width = max_x - min_x
-    track_height = max_y - min_y
-    screen_size = 800
-    screen = pygame.display.set_mode((screen_size, screen_size))
-    clock = pygame.time.Clock()
-    scale = min(screen_size / (track_width + 2*padding), screen_size / (track_height + 2*padding))
-    offset_x = -min_x + padding
-    offset_y = -min_y + padding
-    left_points = [convert_coords(p[0], p[1], offset_x, offset_y, scale, screen_size) for p in track.left_boundary]
-    right_points = [convert_coords(p[0], p[1], offset_x, offset_y, scale, screen_size) for p in track.right_boundary]
-    track_polygon = left_points + right_points[::-1] + [left_points[0]]
-    start_left = convert_coords(
-        track.waypoints[0][0] + track.normals[0][0] * track.track_width,
-        track.waypoints[0][1] + track.normals[0][1] * track.track_width,
-        offset_x,
-        offset_y,
-        scale,
-        screen_size
-    )
-    start_right = convert_coords(
-        track.waypoints[0][0] - track.normals[0][0] * track.track_width,
-        track.waypoints[0][1] - track.normals[0][1] * track.track_width,
-        offset_x,
-        offset_y,
-        scale,
-        screen_size
-    )
-    
     print("Testing Self Play:")
     
     for episode in range(num_episodes):
+        # setup
+        env = MultiRacingEnv(
+            num_agents=2, 
+            num_sensors=11,
+            track_pool=track_pool,
+            track_id=episode,
+            track_width=track_widths
+        )
+        track = env.track
+        
+        # pygame setup (redo for each env)
+        pygame.init()
+        all_points = np.vstack([track.left_boundary, track.right_boundary]) # track bounds for scaling
+        min_x, min_y = all_points.min(axis=0)
+        max_x, max_y = all_points.max(axis=0)
+        padding = 10
+        track_width = max_x - min_x
+        track_height = max_y - min_y
+        screen_size = 800
+        screen = pygame.display.set_mode((screen_size, screen_size))
+        pygame.display.set_caption(f"Self-Play Racing - Episode {episode + 1}")
+        clock = pygame.time.Clock()
+        scale = min(screen_size / (track_width + 2*padding), screen_size / (track_height + 2*padding))
+        offset_x = -min_x + padding
+        offset_y = -min_y + padding
+        left_points = [convert_coords(p[0], p[1], offset_x, offset_y, scale, screen_size) for p in track.left_boundary]
+        right_points = [convert_coords(p[0], p[1], offset_x, offset_y, scale, screen_size) for p in track.right_boundary]
+        track_polygon = left_points + right_points[::-1] + [left_points[0]]
+        start_left = convert_coords(
+            track.waypoints[0][0] + track.normals[0][0] * track.track_width,
+            track.waypoints[0][1] + track.normals[0][1] * track.track_width,
+            offset_x,
+            offset_y,
+            scale,
+            screen_size
+        )
+        start_right = convert_coords(
+            track.waypoints[0][0] - track.normals[0][0] * track.track_width,
+            track.waypoints[0][1] - track.normals[0][1] * track.track_width,
+            offset_x,
+            offset_y,
+            scale,
+            screen_size
+        )
+        
         obs_dict, _ = env.reset()
         
         path_points_0 = []
@@ -69,7 +84,7 @@ def eval(model_path="models/self_play_agent.pth", num_episodes=3):
         running = True
         
         # run episodes
-        for step in range(2000):
+        for step in range(3000):
             for event in pygame.event.get(): # handle quit
                 if event.type == pygame.QUIT:
                     running = False
@@ -124,7 +139,8 @@ def eval(model_path="models/self_play_agent.pth", num_episodes=3):
             
             font = pygame.font.Font(None, 30)
             info_text = [
-                f"Episode: {episode + 1}/{num_episodes}",
+                f"Episode: {episode + 1}/{num_episodes} - Track {episode}",
+                f"Track Width: {track.track_width:.1f}",
                 f"Step: {step}",
                 f"Car 0 (Red)  - Progress: {info_dict['0']['progress']:.1%}, Speed: {info_dict['0']['speed']:.1f}, Reward: {total_reward_0:.0f}",
                 f"Car 1 (Blue) - Progress: {info_dict['1']['progress']:.1%}, Speed: {info_dict['1']['speed']:.1f}, Reward: {total_reward_1:.0f}",
@@ -138,9 +154,6 @@ def eval(model_path="models/self_play_agent.pth", num_episodes=3):
                 
             pygame.display.flip()
             clock.tick(60)
-            
-            print(f"Car 0 action: steering={action_0[0]:.2f}, throttle={action_0[1]:.2f}")
-            print(f"Car 1 action: steering={action_1[0]:.2f}, throttle={action_1[1]:.2f}")
             
             # if stop
             if done_dict["__all__"]:
@@ -159,14 +172,10 @@ def eval(model_path="models/self_play_agent.pth", num_episodes=3):
                 print(f"  Car 1 (Blue): Reward: {total_reward_1:.1f} | Progress: {info_dict['1']['progress']:.1%}")
                 print(f"  Winner: {winner}")
                 
-                pygame.time.wait(3000)
+                pygame.time.wait(2000)
                 break
-        
-        if not running:
-            break
     
     pygame.quit()
 
-
 if __name__ == "__main__":
-    eval(num_episodes=3)
+    eval(num_episodes=5, seed=999)
