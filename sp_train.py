@@ -17,7 +17,7 @@ image = (
 @app.function(
     image=image,
     gpu="L4",
-    timeout=36000,
+    timeout=43200,
     volumes={"/cache": modal.Volume.from_name("racing-model-cache", create_if_missing=True)},
 )
 def train():
@@ -46,7 +46,7 @@ def train():
     
     print("Generating track pool")
     TRACK_POOL = gen_tracks(num_tracks=config["num_envs"], seed=config["seed"])
-    TRACK_WIDTHS = [np.random.randint(4, 10) for _ in range(config["num_envs"])]
+    TRACK_WIDTHS = [np.random.randint(6, 10) for _ in range(config["num_envs"])]
     TRACK_ASSIGNMENTS = [i for i in range(config["num_envs"])]
     
     device = "cuda" if torch.cuda.is_available() else "cpu"

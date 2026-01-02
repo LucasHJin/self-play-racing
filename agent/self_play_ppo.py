@@ -116,6 +116,21 @@ class SelfPlayPPO(PPO):
             
             # logging 
             global_step += c["batch_size"]
+            
+            if update > 0 and update % 30 == 0:
+                checkpoint = {
+                    'update': update,
+                    'global_step': global_step,
+                    'agent_state_dict': self.agent.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    'opponent_pool': [
+                        opp.state_dict() for opp in self.opponent_pool
+                    ],
+                    'config': self.config,
+                }
+                torch.save(checkpoint, f"/cache/checkpoint_update_{update}.pth")
+                print("Saved full checkpoint")
+            
             if episode_info:
                 mean_reward = np.mean([ep["reward"] for ep in episode_info])
                 mean_length = np.mean([ep["length"] for ep in episode_info])
