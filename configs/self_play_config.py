@@ -1,7 +1,7 @@
 def hyperparams_config():
     config = {
         # training
-        "total_timesteps": 3500000,
+        "total_timesteps": 5000000,
         "num_envs": 16,
         "num_steps": 2048,
         "learning_rate": 3e-4,

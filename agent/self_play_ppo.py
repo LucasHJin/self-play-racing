@@ -48,8 +48,26 @@ class SelfPlayPPO(PPO):
         # make new envs for this rollout with new opponent
         self.envs.close() 
         self.envs = gym.vector.SyncVectorEnv([self._make_env(self.env_fn, self.config["seed"] + i, env_idx=i) for i in range(self.config["num_envs"])])
+        
+    def load_checkpoint(self, checkpoint_path):
+        print(f"Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        
+        self.agent.load_state_dict(checkpoint['agent_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.opponent_pool = []
+        for i, opp_state_dict in enumerate(checkpoint['opponent_pool']):
+            opponent = Agent(self.envs.single_observation_space, self.envs.single_action_space).to(self.device)
+            opponent.load_state_dict(opp_state_dict)
+            opponent.eval()
+            for param in opponent.parameters():
+                param.requires_grad = False
+            self.opponent_pool.append(opponent)
+        training_info = checkpoint.get('training_info', {'steps': [], 'rewards': [], 'opponent_pool_size': []})
+        
+        return checkpoint['update'], checkpoint['global_step'], training_info
     
-    def train(self):
+    def train(self, resume_from=None):
         import json # for saving training info
         
         c = self.config
@@ -74,15 +92,25 @@ class SelfPlayPPO(PPO):
         next_done = torch.zeros(c["num_envs"], dtype=torch.bool, device=self.device)
         
         NUM_UPDATES = c["total_timesteps"] // c["batch_size"]
-        global_step = 0
         
-        training_info = {
-            'steps': [],
-            'rewards': [],
-            'opponent_pool_size': []
-        }
+        if resume_from:
+            start_update, global_step, training_info = self.load_checkpoint(resume_from)
+            start_update += 1 
+            print(f"\n{'='*60}")
+            print(f"RESUMING TRAINING from update {start_update}/{NUM_UPDATES}")
+            print(f"Previous global step: {global_step}")
+            print(f"Opponent pool size: {len(self.opponent_pool)}")
+            print(f"{'='*60}\n")
+        else:
+            start_update = 0
+            global_step = 0
+            training_info = {
+                'steps': [],
+                'rewards': [],
+                'opponent_pool_size': []
+            }
         
-        for update in range(NUM_UPDATES):
+        for update in range(start_update, NUM_UPDATES):
             # snapshot management
             if update > 0 and update % self.snapshot_freq == 0:
                 print(f"\n[Self-Play] Creating snapshot at update {update}")
@@ -127,6 +155,7 @@ class SelfPlayPPO(PPO):
                         opp.state_dict() for opp in self.opponent_pool
                     ],
                     'config': self.config,
+                    'training_info': training_info,
                 }
                 torch.save(checkpoint, f"/cache/checkpoint_update_{update}.pth")
                 print("Saved full checkpoint")

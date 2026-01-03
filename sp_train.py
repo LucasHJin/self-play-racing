@@ -71,7 +71,7 @@ def train():
     print(f"\n{'='*60}")
     print("Starting training")
     print(f"{'='*60}\n")
-    trainer.train()
+    trainer.train(resume_from="/cache/checkpoint_update_90.pth")
     print(f"\n{'='*60}")
     print("Training Complete!")
     print(f"{'='*60}\n")
