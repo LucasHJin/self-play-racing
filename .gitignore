@@ -3,3 +3,5 @@ videos/
 __pycache__/
 models/
 data/
+results/
+sanity_check.py
