@@ -140,6 +140,7 @@ class MultiRacingEnv(gym.Env):
                 "last_steering": 0.0,
                 "checkpoints": {0.25: False, 0.50: False, 0.75: False},
                 "finished_step": None,
+                "has_crashed": False,
             }
             
         observations = {f"{i}": self._get_obs(i) for i in range(self.num_agents)}
@@ -163,20 +164,24 @@ class MultiRacingEnv(gym.Env):
         # checkpoints to ensure no initial reward hacking
         if (not data['checkpoints'][0.25] and 0.25 <= car.progress < 0.35):
             data['checkpoints'][0.25] = True
+            reward += 25
         if (data['checkpoints'][0.25] and not data['checkpoints'][0.50] and 0.50 <= car.progress < 0.60):
             data['checkpoints'][0.50] = True
+            reward += 25
         if (data['checkpoints'][0.50] and not data['checkpoints'][0.75] and 0.75 <= car.progress < 0.85):
             data['checkpoints'][0.75] = True
+            reward += 25
         # finished track
         all_checkpoints_passed = all(data['checkpoints'].values())
         if (all_checkpoints_passed and data['last_progress'] > 0.9 and car.progress < 0.1 and progress_delta > 0):
             car.finished = True
             data['finished_step'] = self.steps
             time_bonus = max(0, 200 - (self.steps / 10))
-            reward += time_bonus
+            reward += 100 + time_bonus
         # crash penalty
-        if car.crashed:
-            reward -= 100
+        if car.crashed and not data['has_crashed']: # need to make sure you only crash once
+            reward -= 75
+            data['has_crashed'] = True
         
         return reward
     
