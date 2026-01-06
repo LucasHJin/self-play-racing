@@ -136,10 +136,10 @@ class RacingEnv(gym.Env):
         if not self.car.crashed and progress_delta > 0:
             speed = np.sqrt(self.car.vx ** 2 + self.car.vy ** 2)
             speed_ratio = np.clip(speed / Car.MAX_SPEED, 0.0, 1.0)
-            reward += speed_ratio * 8.0
+            reward += speed_ratio * 9.0
         # crash penalty
         if self.car.crashed: # need to make sure you only crash once
-            reward -= 40
+            reward -= 60
         # finished track
         all_checkpoints_passed = all(self.checkpoints.values())
         if (all_checkpoints_passed and self.last_progress > 0.9 and self.car.progress < 0.1 and progress_delta > 0):

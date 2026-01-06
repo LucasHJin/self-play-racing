@@ -165,17 +165,17 @@ class MultiRacingEnv(gym.Env):
         if not car.crashed and progress_delta > 0:
             speed = np.sqrt(car.vx ** 2 + car.vy ** 2)
             speed_ratio = np.clip(speed / MultiCar.MAX_SPEED, 0.0, 1.0)
-            reward += speed_ratio * 8.0
+            reward += speed_ratio * 9.0
         # checkpoints to ensure no initial reward hacking
         if (not data['checkpoints'][0.25] and 0.25 <= car.progress < 0.35):
             data['checkpoints'][0.25] = True
-            reward += 25
+            reward += 20
         if (data['checkpoints'][0.25] and not data['checkpoints'][0.50] and 0.50 <= car.progress < 0.60):
             data['checkpoints'][0.50] = True
-            reward += 25
+            reward += 20
         if (data['checkpoints'][0.50] and not data['checkpoints'][0.75] and 0.75 <= car.progress < 0.85):
             data['checkpoints'][0.75] = True
-            reward += 25
+            reward += 20
         # finished track
         all_checkpoints_passed = all(data['checkpoints'].values())
         if (all_checkpoints_passed and data['last_progress'] > 0.9 and car.progress < 0.1 and progress_delta > 0):
@@ -185,7 +185,7 @@ class MultiRacingEnv(gym.Env):
             reward += 100 + time_bonus
         # crash penalty
         if car.crashed and not data['has_crashed']: # need to make sure you only crash once
-            reward -= 40
+            reward -= 60
             data['has_crashed'] = True
         
         return reward
