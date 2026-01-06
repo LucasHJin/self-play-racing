@@ -54,3 +54,11 @@ class SelfPlayWrapper(gym.Wrapper):
         info = info_dict[f"{self.agent_idx}"]
         
         return obs, reward, done, truncated, info
+    
+    @property
+    def speed_weight(self):
+        return self.env.speed_weight # type: ignore
+
+    @speed_weight.setter  
+    def speed_weight(self, value):
+        self.env.speed_weight = value # type: ignore

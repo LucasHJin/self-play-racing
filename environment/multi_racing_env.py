@@ -6,7 +6,7 @@ from .multi_car import MultiCar
 # https://gymnasium.farama.org/introduction/create_custom_env/
 
 class MultiRacingEnv(gym.Env):
-    def __init__(self, num_agents=2, num_sensors=11, track_pool=None, track_id=None, track_width=None):
+    def __init__(self, num_agents=2, num_sensors=11, track_pool=None, track_id=None, track_width=None, speed_weight=8.0):
         super().__init__()
         
         self.track = MultiTrack(track_pool=track_pool, track_id=track_id, track_width=track_width)
@@ -23,6 +23,7 @@ class MultiRacingEnv(gym.Env):
             "checkpoints": {0.25: False, 0.50: False, 0.75: False},
             "finished_step": None,
         } for _ in range(num_agents)]
+        self.speed_weight = speed_weight
         
         # per agent -> [steering, throttle]
         self.action_space = gym.spaces.Dict({
@@ -165,7 +166,7 @@ class MultiRacingEnv(gym.Env):
         if not car.crashed and progress_delta > 0:
             speed = np.sqrt(car.vx ** 2 + car.vy ** 2)
             speed_ratio = np.clip(speed / MultiCar.MAX_SPEED, 0.0, 1.0)
-            reward += speed_ratio * 9.0
+            reward += speed_ratio * self.speed_weight
         # checkpoints to ensure no initial reward hacking
         if (not data['checkpoints'][0.25] and 0.25 <= car.progress < 0.35):
             data['checkpoints'][0.25] = True
@@ -222,6 +223,18 @@ class MultiRacingEnv(gym.Env):
                     self.cars[j].vx *= 0.92
                     self.cars[j].vy *= 0.92
                 
+        proximity_penalties = [0.0] * self.num_agents
+        for i in range(self.num_agents-1):
+            for j in range(i + 1, self.num_agents):
+                car1_pos = np.array([self.cars[i].x, self.cars[i].y])
+                car2_pos = np.array([self.cars[j].x, self.cars[j].y])
+                distance = np.linalg.norm(car1_pos - car2_pos)
+                
+                if distance < 0.5:
+                    penalty = -5.0
+                    proximity_penalties[i] += penalty
+                    proximity_penalties[j] += penalty
+                
         self.steps += 1
         
         rewards = {}
@@ -229,7 +242,7 @@ class MultiRacingEnv(gym.Env):
         infos = {}
         
         for i in range(self.num_agents):
-            rewards[f"{i}"] = self.calc_reward(i)
+            rewards[f"{i}"] = self.calc_reward(i) + proximity_penalties[i]
             observations[f"{i}"] = self._get_obs(i)
             infos[f"{i}"] = self._get_info(i)
             

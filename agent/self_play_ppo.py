@@ -132,6 +132,17 @@ class SelfPlayPPO(PPO):
             new_lr = frac * c["learning_rate"]
             self.optimizer.param_groups[0]["lr"] = new_lr
             
+            # log std annealing
+            start_log_std = -0.5
+            end_log_std = -1.6
+            current_log_std = frac * start_log_std + (1 - frac) * end_log_std
+            self.agent.log_std.data.fill_(current_log_std)
+            
+            # speed reward annealing
+            speed_weight = 8.0 + (1 - frac) * 6.0 # 8-14
+            for env_idx in range(self.config["num_envs"]):
+                setattr(self.envs.envs[env_idx], 'speed_weight', speed_weight)
+            
             # 2 phase loop
                 # collect experience with current policy -> rollout
                 # use experience to update policy + value function (actor + critic) -> compute advantage, update ppo

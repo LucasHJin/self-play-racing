@@ -6,7 +6,7 @@ from .car import Car
 # https://gymnasium.farama.org/introduction/create_custom_env/
 
 class RacingEnv(gym.Env):
-    def __init__(self, num_sensors=7, track_pool=None, track_id=None, track_width=None):
+    def __init__(self, num_sensors=7, track_pool=None, track_id=None, track_width=None, speed_weight=8.0):
         super().__init__()
         
         self.track = Track(track_pool=track_pool, track_id=track_id, track_width=track_width)
@@ -23,6 +23,7 @@ class RacingEnv(gym.Env):
             0.50: False,
             0.75: False,
         }
+        self.speed_weight = speed_weight
         
         # [steering, throttle]
         self.action_space = gym.spaces.Box(
@@ -136,7 +137,7 @@ class RacingEnv(gym.Env):
         if not self.car.crashed and progress_delta > 0:
             speed = np.sqrt(self.car.vx ** 2 + self.car.vy ** 2)
             speed_ratio = np.clip(speed / Car.MAX_SPEED, 0.0, 1.0)
-            reward += speed_ratio * 9.0
+            reward += speed_ratio * self.speed_weight
         # crash penalty
         if self.car.crashed: # need to make sure you only crash once
             reward -= 60
