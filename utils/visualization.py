@@ -409,3 +409,63 @@ def visualize_sb3_agent(env, model, video_path, max_steps=2000):
         'crashed': info['crashed'],
         'speed': info['speed']
     }
+    
+def visualization_grid(video_paths, model_names, output_path="racing_grid.mp4", padding=10):
+    # get video properties
+    caps = [cv2.VideoCapture(path) for path in video_paths]
+    fps = int(caps[0].get(cv2.CAP_PROP_FPS))
+    frame_width = int(caps[0].get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(caps[0].get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) for cap in caps)
+    # output = 2x2 grid
+    output_width = frame_width * 2 + padding * 3
+    output_height = frame_height * 2 + padding * 3
+    
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
+    out = cv2.VideoWriter(output_path, fourcc, fps, (output_width, output_height))
+    
+    # read each frame of each video
+    for _ in range(total_frames):
+        frames = []
+        for cap in caps:
+            ret, frame = cap.read()
+            if not ret: # finished -> freeze on last frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, cap.get(cv2.CAP_PROP_POS_FRAMES) - 1)
+                ret, frame = cap.read()
+            frames.append(frame) # else -> add the frame
+        
+        # labels for each frame (top right corner)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.7
+        font_thickness = 2
+        text_color = (255, 255, 255)
+        
+        for (frame, name) in zip(frames, model_names):
+            text_size = cv2.getTextSize(name, font, font_scale, font_thickness)[0]
+            text_width = text_size[0]
+            text_height = text_size[1]
+            
+            x_pos = frame_width - text_width - 15
+            y_pos = 10
+            
+            cv2.putText(frame, name, 
+                    (x_pos, y_pos + text_height + 5), 
+                    font, font_scale, text_color, font_thickness)
+        
+        # grid with padding
+        grid_frame = np.ones((output_height, output_width, 3), dtype=np.uint8) * 255
+        grid_frame[padding:padding+frame_height, 
+                   padding:padding+frame_width] = frames[0]
+        grid_frame[padding:padding+frame_height, 
+                   padding*2+frame_width:padding*2+frame_width*2] = frames[1]
+        grid_frame[padding*2+frame_height:padding*2+frame_height*2, 
+                   padding:padding+frame_width] = frames[2]
+        grid_frame[padding*2+frame_height:padding*2+frame_height*2, 
+                   padding*2+frame_width:padding*2+frame_width*2] = frames[3]
+        
+        out.write(grid_frame)
+    
+    # cleanup
+    for cap in caps:
+        cap.release()
+    out.release()
