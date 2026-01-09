@@ -189,5 +189,5 @@ def train_single_baseline():
     
 if __name__ == "__main__":
     train_multi()
-    #train_single_baseline()
-    #train_single()
+    train_single_baseline()
+    train_single()
