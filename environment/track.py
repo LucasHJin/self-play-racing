@@ -47,11 +47,11 @@ def gen_random_track(num_points=15, base_radius=50, radius_variation=15, angle_j
 def gen_tracks(num_tracks=10, seed=None):
     tracks = []
     for _ in range(num_tracks):
-        num_points = np.random.randint(10, 20)
-        base_radius = np.random.randint(50, 95)
-        radius_variation = np.random.randint(15, base_radius // 2 - 5)
-        angle_jitter = np.random.uniform(0.1, 0.8)
-        smoothness = np.random.uniform(0.1, 0.8)
+        num_points = np.random.randint(10, 15)
+        base_radius = np.random.randint(50, 80)
+        radius_variation = np.random.randint(10, base_radius // 2 - 10)
+        angle_jitter = np.random.uniform(0.2, 0.7)
+        smoothness = np.random.uniform(0.2, 0.7)
         tracks.append(gen_random_track(num_points, base_radius, radius_variation, angle_jitter, smoothness, seed))
     return tracks
 

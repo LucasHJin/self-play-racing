@@ -3,12 +3,15 @@ import numpy as np
 import torch
 from stable_baselines3 import PPO as SB3_PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
+import gymnasium as gym
 from environment.racing_env import RacingEnv
 from environment.multi_racing_env import MultiRacingEnv
 from environment.track import gen_tracks
 from agent.ppo import PPO
 from agent.self_play_ppo import SelfPlayPPO
+from configs.base_config import hyperparams_config as base_config
 from configs.self_play_config import hyperparams_config
+from utils.sb3_logger import TrainingLoggerCallback
 
 def train_multi():
     # set seeds for reproducibility
@@ -55,7 +58,7 @@ def train_multi():
     print(f"{'='*60}\n")
     
     # save final model
-    final_path = "models/self_play_agent_local.pth"
+    final_path = "models/self_play_agent_3.pth"
     trainer.save(final_path)
     print(f"Final model saved to {final_path}")
     
@@ -68,7 +71,7 @@ def train_single():
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
     
-    config = hyperparams_config()
+    config = base_config()
     set_seed(config["seed"])
     
     print("Generating track pool")
@@ -107,7 +110,7 @@ def train_single():
     print(f"{'='*60}\n")
     
     # save final model
-    final_path = "/models/single_agent_local.pth"
+    final_path = "models/single_agent_4.pth"
     trainer.save(final_path)
     print(f"Final model saved to {final_path}")
     
@@ -120,7 +123,7 @@ def train_single_baseline():
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
     
-    config = hyperparams_config()
+    config = base_config()
     set_seed(config["seed"])
     
     print("Generating track pool")
@@ -145,13 +148,15 @@ def train_single_baseline():
                 track_id=env_idx,
                 track_width=TRACK_WIDTHS[env_idx]
             )
+            env = gym.wrappers.RecordEpisodeStatistics(env)
             return env
         return env_fn
     
     env = SubprocVecEnv([make_env(i) for i in range(config["num_envs"])])
     
     # match configs to hyperparameters for custom env
-    model = SB3_PPO(
+    model = SB3_PPO("MlpPolicy", env, seed=config["seed"])
+    """model = SB3_PPO(
         "MlpPolicy",
         env,
         learning_rate=config["learning_rate"],
@@ -167,17 +172,22 @@ def train_single_baseline():
         verbose=1,
         seed=config["seed"],
         device="cuda" if torch.cuda.is_available() else "cpu"
-    )
+    )"""
+    
+    logger_callback = TrainingLoggerCallback(save_path="data/training_info_sb3_general.json")
     
     print("Starting training\n")
     model.learn(
         total_timesteps=config["total_timesteps"],
-        progress_bar=True
+        callback=logger_callback,
+        progress_bar=False
     )
     print("\nTraining Complete!")
 
-    model.save("models/sb3_baseline_final")
+    model.save("models/sb3_baseline_agent_general")
     env.close()
     
 if __name__ == "__main__":
     train_multi()
+    #train_single_baseline()
+    #train_single()

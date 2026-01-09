@@ -134,7 +134,7 @@ class SelfPlayPPO(PPO):
             
             # log std annealing
             start_log_std = -0.3
-            end_log_std = -1.1
+            end_log_std = -1.2
             current_log_std = frac * start_log_std + (1 - frac) * end_log_std
             self.agent.log_std.data.fill_(current_log_std)
             

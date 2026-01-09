@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import json
-from pathlib import Path
 from stable_baselines3 import PPO as SB3_PPO
 from utils.visualization import visualize_single_agent, visualize_multi_agent, visualize_sb3_agent, visualization_grid
 from utils.metrics import eval_single_agent, eval_multi_agent, eval_sb3_agent, display_comparison, eval_training
@@ -30,36 +29,39 @@ def evaluate_single_agent_overall(track_pool, track_widths, device, model, video
                 track_id=track_idx,
                 track_width=track_widths[run_idx]
             )
-            if run_idx == 0 and track_idx == 0:
+            """if run_idx == 0 and track_idx == 0:
                 metrics = visualize_single_agent(env, agent, device, video_path)
-            else:
-                metrics = eval_single_agent(env, agent, device)
+            else:"""
+            metrics = eval_single_agent(env, agent, device)
             all_metrics.append(metrics)
     
     # aggregate stats
     total_episodes = len(all_metrics)
+    successful_runs = [m for m in all_metrics if m['finished']]
+    
+    # efficiency -> calc distance
+    efficiency_all = []
+    for m in all_metrics:
+        if m['progress'] > 0.01:
+            efficiency_all.append({
+                'steps_per_progress': m['steps'] / m['progress'],
+                'distance_per_progress': m['total_distance'] / m['progress'],
+            })
+    
     results = {
         'num_episodes': total_episodes,
-        'success_rate': sum(m['finished'] for m in all_metrics) / total_episodes,
+        'num_successful': len(successful_runs),
+        'success_rate': len(successful_runs) / total_episodes,
         'crash_rate': sum(m['crashed'] for m in all_metrics) / total_episodes,
-        'avg_steps': np.mean([m['steps'] for m in all_metrics]),
-        'avg_reward': np.mean([m['total_reward'] for m in all_metrics]),
-        'avg_progress': np.mean([m['progress'] for m in all_metrics]),
-        'avg_speed': np.mean([m['speed'] for m in all_metrics]),
+        'avg_steps': np.mean([m['steps'] for m in successful_runs]) if successful_runs else 0,
+        'avg_reward': np.mean([m['total_reward'] for m in successful_runs]) if successful_runs else 0,
+        'avg_progress': np.mean([m['progress'] for m in successful_runs]) if successful_runs else 0,
+        'avg_speed': np.mean([m['speed'] for m in successful_runs]) if successful_runs else 0,
+        'avg_distance': np.mean([m['total_distance'] for m in successful_runs]) if successful_runs else 0,
+        'avg_steps_per_progress': np.mean([e['steps_per_progress'] for e in efficiency_all]),
+        
         'all_episodes': all_metrics
     }
-    
-    # print summary
-    print("\n" + "="*60)
-    print("SINGLE-AGENT RESULTS")
-    print("="*60)
-    print(f"Success Rate:    {results['success_rate']:6.1%}")
-    print(f"Crash Rate:      {results['crash_rate']:6.1%}")
-    print(f"Avg Steps:       {results['avg_steps']:6.1f}")
-    print(f"Avg Reward:      {results['avg_reward']:6.1f}")
-    print(f"Avg Progress:    {results['avg_progress']:6.1%}")
-    print(f"Avg Speed:       {results['avg_speed']:6.1f}")
-    print("="*60)
     
     return results
 
@@ -84,37 +86,39 @@ def evaluate_multi_agent_overall(track_pool, track_widths, device, model, video_
                 track_id=track_idx,
                 track_width=track_widths[run_idx]
             )
-            if run_idx == 0 and track_idx == 0:
+            """if run_idx == 0 and track_idx == 0:
                 metrics = visualize_multi_agent(env, agent, device, video_path)
-            else:
-                metrics = eval_multi_agent(env, agent, device)
+            else:"""
+            metrics = eval_multi_agent(env, agent, device)
             all_metrics.append(metrics)
     
     # aggregate stats
     total_episodes = len(all_metrics)
+    successful_runs = [m for m in all_metrics if m['finished']]
+    
+    efficiency_all = []
+    for m in all_metrics:
+        if m['progress'] > 0.01:
+            efficiency_all.append({
+                'steps_per_progress': m['steps'] / m['progress'],
+                'distance_per_progress': m['total_distance'] / m['progress'],
+            })
+    
     results = {
         'num_episodes': total_episodes,
-        'success_rate': sum(m['finished'] for m in all_metrics) / total_episodes,
+        'num_successful': len(successful_runs),
+        'success_rate': len(successful_runs) / total_episodes,
         'crash_rate': sum(m['crashed'] for m in all_metrics) / total_episodes,
-        'avg_steps': np.mean([m['steps'] for m in all_metrics]),
-        'avg_reward': np.mean([m['total_reward'] for m in all_metrics]),
-        'avg_progress': np.mean([m['progress'] for m in all_metrics]),
-        'avg_speed': np.mean([m['speed'] for m in all_metrics]),
+        'avg_steps': np.mean([m['steps'] for m in successful_runs]) if successful_runs else 0,
+        'avg_reward': np.mean([m['total_reward'] for m in successful_runs]) if successful_runs else 0,
+        'avg_progress': np.mean([m['progress'] for m in successful_runs]) if successful_runs else 0,
+        'avg_speed': np.mean([m['speed'] for m in successful_runs]) if successful_runs else 0,
+        'avg_distance': np.mean([m['total_distance'] for m in successful_runs]) if successful_runs else 0,
+        'avg_steps_per_progress': np.mean([e['steps_per_progress'] for e in efficiency_all]),
+        
         'all_episodes': all_metrics
     }
-    
-    # print summary
-    print("\n" + "="*60)
-    print("MULTI-AGENT RESULTS")
-    print("="*60)
-    print(f"Success Rate:    {results['success_rate']:6.1%}")
-    print(f"Crash Rate:      {results['crash_rate']:6.1%}")
-    print(f"Avg Steps:       {results['avg_steps']:6.1f}")
-    print(f"Avg Reward:      {results['avg_reward']:6.1f}")
-    print(f"Avg Progress:    {results['avg_progress']:6.1%}")
-    print(f"Avg Speed:       {results['avg_speed']:6.1f}")
-    print("="*60)
-    
+
     return results
 
 def evaluate_sb3_agent_overall(track_pool, track_widths, model, video_path, num_tracks=20, num_runs=10):
@@ -131,56 +135,57 @@ def evaluate_sb3_agent_overall(track_pool, track_widths, model, video_path, num_
                 track_id=track_idx,
                 track_width=track_widths[run_idx]
             )
-            if run_idx == 0 and track_idx == 0:
+            """if run_idx == 0 and track_idx == 0:
                 metrics = visualize_sb3_agent(env, agent, video_path)
-            else:
-                metrics = eval_sb3_agent(env, agent)
+            else:"""
+            metrics = eval_sb3_agent(env, agent)
             all_metrics.append(metrics)
             
     # aggregate stats
     total_episodes = len(all_metrics)
+    successful_runs = [m for m in all_metrics if m['finished']]
+    
+    efficiency_all = []
+    for m in all_metrics:
+        if m['progress'] > 0.01:
+            efficiency_all.append({
+                'steps_per_progress': m['steps'] / m['progress'],
+                'distance_per_progress': m['total_distance'] / m['progress'],
+            })
+    
     results = {
         'num_episodes': total_episodes,
-        'success_rate': sum(m['finished'] for m in all_metrics) / total_episodes,
+        'num_successful': len(successful_runs),
+        'success_rate': len(successful_runs) / total_episodes,
         'crash_rate': sum(m['crashed'] for m in all_metrics) / total_episodes,
-        'avg_steps': np.mean([m['steps'] for m in all_metrics]),
-        'avg_reward': np.mean([m['total_reward'] for m in all_metrics]),
-        'avg_progress': np.mean([m['progress'] for m in all_metrics]),
-        'avg_speed': np.mean([m['speed'] for m in all_metrics]),
+        'avg_steps': np.mean([m['steps'] for m in successful_runs]) if successful_runs else 0,
+        'avg_reward': np.mean([m['total_reward'] for m in successful_runs]) if successful_runs else 0,
+        'avg_progress': np.mean([m['progress'] for m in successful_runs]) if successful_runs else 0,
+        'avg_speed': np.mean([m['speed'] for m in successful_runs]) if successful_runs else 0,
+        'avg_distance': np.mean([m['total_distance'] for m in successful_runs]) if successful_runs else 0,
+        'avg_steps_per_progress': np.mean([e['steps_per_progress'] for e in efficiency_all]),
+        
         'all_episodes': all_metrics
     }
-    
-    # print summary
-    print("\n" + "="*60)
-    print("SINGLE-AGENT RESULTS")
-    print("="*60)
-    print(f"Success Rate:    {results['success_rate']:6.1%}")
-    print(f"Crash Rate:      {results['crash_rate']:6.1%}")
-    print(f"Avg Steps:       {results['avg_steps']:6.1f}")
-    print(f"Avg Reward:      {results['avg_reward']:6.1f}")
-    print(f"Avg Progress:    {results['avg_progress']:6.1%}")
-    print(f"Avg Speed:       {results['avg_speed']:6.1f}")
-    print("="*60)
-    
+
     return results
     
 def eval():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # configs
-    num_tracks = 30
+    num_tracks = 40
     num_runs = 5
-    seed = 33
+    seed = 42
     # generate tracks
     track_pool = gen_tracks(num_tracks=num_tracks, seed=seed)
     track_widths = [np.random.RandomState(seed + i).randint(4, 10) 
                     for i in range(num_tracks)]
     
-    single_results = evaluate_single_agent_overall(track_pool, track_widths, device, "models/test.pth", "videos/single.mp4", num_tracks, num_runs)
-    multi_results = evaluate_multi_agent_overall(track_pool, track_widths, device, "models/self_play_agent_3.pth", "videos/self_play.mp4", num_tracks, num_runs)
+    single_results = evaluate_single_agent_overall(track_pool, track_widths, device, "models/single_agent.pth", "videos/single.mp4", num_tracks, num_runs)
+    multi_results = evaluate_multi_agent_overall(track_pool, track_widths, device, "models/self_play_agent.pth", "videos/self_play.mp4", num_tracks, num_runs)
     sb3_results = evaluate_sb3_agent_overall(track_pool, track_widths, "models/sb3_baseline_agent", "videos/sb3.mp4", num_tracks, num_runs)
     sb3_general_results = evaluate_sb3_agent_overall(track_pool, track_widths, "models/sb3_baseline_agent_general", "videos/sb3_general.mp4", num_tracks, num_runs)
 
-    Path("results").mkdir(exist_ok=True)
     with open("data/eval_info_single.json", "w") as f:
         json.dump(single_results, f, indent=2)
     with open("data/eval_info_sb3.json", "w") as f:
@@ -190,17 +195,17 @@ def eval():
     with open("data/eval_info_self_play.json", "w") as f:
         json.dump(multi_results, f, indent=2)
         
-    visualization_grid(
+    """visualization_grid(
         video_paths=[
             "videos/single.mp4",
             "videos/sb3.mp4",
-            "videos/sb3_general.mp4"
+            "videos/sb3_general.mp4",
             "videos/self_play.mp4",
         ],
         model_names=[
             "Single",
             "SB3 Finetuned",
-            "SB3 General"
+            "SB3 General",
             "Self-Play",
         ],
         output_path="static/racing_grid.mp4"
@@ -208,25 +213,25 @@ def eval():
     
     eval_training(
         data={
-            "Single": "data/training_info_single_2.json",
+            "Single": "data/training_info_single.json",
             "SB3 Finetuned": "data/training_info_sb3.json",
             "SB3 General": "data/training_info_sb3_general.json",
-            "Self-Play": "data/training_info_self_play_3.json",
+            "Self-Play": "data/training_info_self_play.json",
         },
         output_path="static/training_eval.png"
-    )
+    )"""
     
     display_comparison(
         results_files=[
             "data/eval_info_single.json",
             "data/eval_info_sb3.json",
             "data/eval_info_sb3_general.json",
-            "data/eval_info_self_play"
+            "data/eval_info_self_play.json",
         ],
         labels=[
             "Single",
             "SB3 Finetuned",
-            "SB3 General"
+            "SB3 General",
             "Self-Play",
         ],
         output_path="static/eval_comparison.png"

@@ -186,19 +186,13 @@ class MultiRacingEnv(gym.Env):
         if (all_checkpoints_passed and data['last_progress'] > 0.9 and car.progress < 0.1 and progress_delta > 0):
             car.finished = True
             data['finished_step'] = self.steps
-            time_bonus = max(0, 200 - (self.steps / 10))
+            time_bonus = max(0, 300 - (self.steps / 15))
             reward += 100 + time_bonus
         # crash penalty
         if car.crashed and not data['has_crashed']: # need to make sure you only crash once
-            reward -= 140
+            reward -= 160
             data['has_crashed'] = True
-        # being ahead currently
-        if self.num_agents == 2:
-            other_idx = 1 - agent_idx
-            if car.progress > self.cars[other_idx].progress:
-                progress_advantage = car.progress - self.cars[other_idx].progress
-                reward += 10.0 + (progress_advantage * 10.0)
-                
+
         return reward
     
     def place(self):
@@ -260,7 +254,7 @@ class MultiRacingEnv(gym.Env):
             for i in range(self.num_agents):
                 placement = self.agents_data[i]['placement']
                 if placement == 1:
-                    rewards[f"{i}"] += 200
+                    rewards[f"{i}"] += 250
                 infos[f"{i}"]["reward"] = rewards[f"{i}"]
                 infos[f"{i}"]["placement"] = placement
         else:
