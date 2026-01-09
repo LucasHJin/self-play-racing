@@ -13,7 +13,7 @@ This project showcases a complete RL pipeline from environment design to multi-a
 
 https://github.com/user-attachments/assets/6e7963f1-34c4-4d83-b6cc-06ab8ca47f73
 
-## 📊 Results
+## Results
 
 ![Evaluation Comparison](static/eval_comparison.png)
 
