@@ -11,7 +11,7 @@ This project showcases a complete RL pipeline from environment design to multi-a
 - **Self-play training** where agents learn to race competitively against past versions of themselves
 - **Multi-agent dynamics** with collision detection and competitive reward structures
 
-https://github.com/user-attachments/assets/50196030-837f-4166-bf74-f3ae99e6934c
+https://github.com/user-attachments/assets/6e7963f1-34c4-4d83-b6cc-06ab8ca47f73
 
 ## 📊 Results
 
